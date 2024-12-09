@@ -133,7 +133,7 @@ async def set_initial_data(request: InitialDataRequest):
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/ai/create-user-persona")
-async def create_persona(request: InitialDataRequest):
+async def create_persona(request: CustomPersonaRequest):
     try:
         print("Reading persona template...")
         template_path = os.path.join(os.path.dirname(__file__), 'persona_template.xml')
