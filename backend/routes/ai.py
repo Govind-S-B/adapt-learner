@@ -33,6 +33,13 @@ class InitialDataRequest(BaseModel):
 class TextToSpeechRequest(BaseModel):
     text: str
 
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+    width: int = 1024
+    height: int = 768
+    steps: int = 1
+    n: int = 1
+
 @router.get("/ai")
 async def ai_get():
     """
@@ -342,4 +349,63 @@ async def generate_audio(request: TextToSpeechRequest):
 
     except Exception as e:
         print(f"Error in generate_audio: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.post("/ai/gen-image")
+async def generate_image(request: ImageGenerationRequest):
+    """
+    Endpoint to generate images using Together AI API
+    """
+    try:
+        together_api_key = os.getenv("TOGETHER_API_KEY")
+        if not together_api_key:
+            raise HTTPException(status_code=500, detail="Together AI API key not configured")
+
+        url = "https://api.together.xyz/v1/images/generations"
+        headers = {
+            "Authorization": f"Bearer {together_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "black-forest-labs/FLUX.1-schnell-Free",
+            "prompt": request.prompt,
+            "width": request.width,
+            "height": request.height,
+            "steps": request.steps,
+            "n": request.n,
+            "response_format": "b64_json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Together AI API request failed: {error_text}"
+                    )
+                
+                result = await response.json()
+                
+                # Extract base64 image data
+                if "data" in result and len(result["data"]) > 0:
+                    image_data = result["data"][0]["b64_json"]
+                    
+                    # Return the image with appropriate headers
+                    return Response(
+                        content=base64.b64decode(image_data),
+                        media_type="image/png",
+                        headers={
+                            "Content-Disposition": "attachment; filename=generated_image.png"
+                        }
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="No image data received from API"
+                    )
+
+    except Exception as e:
+        print(f"Error in generate_image: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

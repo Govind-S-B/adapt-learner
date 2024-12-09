@@ -132,6 +132,37 @@ class APITester:
         if len(response.content) == 0:
             raise Exception("No audio data received for long text")
 
+    def test_gen_image_endpoint(self):
+        """
+        Test the image generation endpoint
+        """
+        # Test with a simple prompt
+        test_prompt = "A beautiful sunset over mountains"
+        payload = {
+            "prompt": test_prompt,
+            "width": 1024,
+            "height": 768,
+            "steps": 1,
+            "n": 1
+        }
+        
+        response = requests.post(f"{self.base_url}/ai/gen-image", json=payload)
+        
+        if response.status_code != 200:
+            raise Exception(f"Expected status code 200, got {response.status_code}")
+        
+        # Check if the response is an image file
+        if response.headers.get('content-type') != 'image/png':
+            raise Exception("Expected image/png content type")
+        
+        # Check if we got some image data
+        if len(response.content) == 0:
+            raise Exception("No image data received")
+        
+        # Save the image file for verification
+        with open("test_output.png", "wb") as f:
+            f.write(response.content)
+
     def run_all_tests(self):
         print("\n🚀 Starting API Tests...\n")
         
@@ -141,6 +172,7 @@ class APITester:
         self.run_test("Transcribe Endpoint Test", self.test_transcribe_endpoint)
         self.run_test("Set Initial Data Endpoint Test", self.test_set_initial_data_endpoint)
         self.run_test("Generate Audio Endpoint Test", self.test_gen_audio_endpoint)
+        self.run_test("Generate Image Endpoint Test", self.test_gen_image_endpoint)
 
         print("\n📊 Test Summary:")
         for result in self.test_results:
