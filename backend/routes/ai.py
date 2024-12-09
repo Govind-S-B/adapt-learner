@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Response
 from pydantic import BaseModel
 from enum import Enum
 from singletons.data import data
@@ -7,6 +7,9 @@ import os
 import io
 import requests
 import base64
+from typing import List
+import textwrap
+import aiohttp
 
 router = APIRouter()
 
@@ -26,6 +29,9 @@ class InitialDataRequest(BaseModel):
 #     student_data: str
 #     parent_data: str
 #     teacher_data: str
+
+class TextToSpeechRequest(BaseModel):
+    text: str
 
 @router.get("/ai")
 async def ai_get():
@@ -286,3 +292,54 @@ def groq_transcribe(buffer_data, api_key):
         raise Exception(f"Groq API request failed with status code {response.status_code}: {response.text}")
     
     return transcribed_str 
+
+@router.post("/ai/gen-audio")
+async def generate_audio(request: TextToSpeechRequest):
+    """
+    Endpoint to convert text to speech using Deepgram API
+    """
+    try:
+        deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
+        if not deepgram_api_key:
+            raise HTTPException(status_code=500, detail="Deepgram API key not configured")
+
+        # Split text into chunks of 2000 characters
+        text_chunks = textwrap.wrap(request.text, 2000, break_long_words=False, break_on_hyphens=False)
+        
+        audio_chunks: List[bytes] = []
+        
+        async with aiohttp.ClientSession() as session:
+            for chunk in text_chunks:
+                headers = {
+                    "Authorization": f"Token {deepgram_api_key}",
+                    "Content-Type": "text/plain"
+                }
+                
+                url = "https://api.deepgram.com/v1/speak?model=aura-asteria-en"
+                
+                async with session.post(url, headers=headers, data=chunk) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise HTTPException(
+                            status_code=response.status,
+                            detail=f"Deepgram API request failed: {error_text}"
+                        )
+                    
+                    audio_chunk = await response.read()
+                    audio_chunks.append(audio_chunk)
+        
+        # Combine all audio chunks
+        combined_audio = b''.join(audio_chunks)
+        
+        # Return the audio as a response with appropriate headers
+        return Response(
+            content=combined_audio,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=generated_audio.mp3"
+            }
+        )
+
+    except Exception as e:
+        print(f"Error in generate_audio: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
