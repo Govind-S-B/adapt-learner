@@ -1,0 +1,109 @@
+<Persona>
+    <BasicProfile>
+        <Name>OptionalStudentName</Name>
+        <Age>10</Age>
+        <GradeLevel>5th</GradeLevel>
+        <PrimaryLanguage>English</PrimaryLanguage>
+        <ReadingLevel>Basic</ReadingLevel>
+    </BasicProfile>
+    
+    <CognitiveAndLinguisticFactors>
+        <KnownChallenges>
+            <!-- name: the type of challenge; textAdjustments: key instructions -->
+            <Item name="ADHD" textAdjustments="Prefer bullet points, concise explanations, minimal filler text"/>
+            <Item name="MildDyslexia" textAdjustments="Use shorter sentences, avoid overly complex words, highlight key terms"/>
+        </KnownChallenges>
+        <AttentionSpan>Short</AttentionSpan>
+        <VocabularyComplexity>Simple</VocabularyComplexity>
+        <!-- Approximate sentence and paragraph guidelines -->
+        <SentenceGuidelines maxWordsPerSentence="12"/>
+        <ParagraphGuidelines maxSentencesPerParagraph="2"/>
+    </CognitiveAndLinguisticFactors>
+    
+    <SubjectSpecificPreferences>
+        <!-- Each subject can have distinct guidance -->
+        <Subject name="Mathematics">
+            <PreferredFormat>Step-by-step bullet points for procedures, short summaries for concepts</PreferredFormat>
+            <PriorKnowledge>
+                <Topic name="Basic Addition" level="strong"/>
+                <Topic name="Fractions" level="familiar"/>
+                <Topic name="Algebraic Expressions" level="weak"/>
+            </PriorKnowledge>
+            <JargonHandling>Explain terms (e.g., 'denominator') in simple language first</JargonHandling>
+            <UseAnalogies types="cooking measurements, dividing pizza slices"/>
+        </Subject>
+        
+        <Subject name="Science">
+            <PreferredFormat>Short paragraphs with occasional bullet points</PreferredFormat>
+            <PriorKnowledge>
+                <Topic name="Basic Plant Biology" level="strong"/>
+                <Topic name="Electricity" level="new"/>
+            </PriorKnowledge>
+            <JargonHandling>Provide a simple definition immediately after a new term</JargonHandling>
+            <UseAnalogies types="everyday appliances, simple nature examples"/>
+        </Subject>
+        
+        <Subject name="Literature">
+            <PreferredFormat>Short narrative summaries, maybe 1-2 bullet points to clarify main points</PreferredFormat>
+            <PriorKnowledge>
+                <Topic name="Fables" level="strong"/>
+                <Topic name="Poetry" level="uncertain"/>
+            </PriorKnowledge>
+            <JargonHandling>Explain literary devices with simple examples (e.g., simile = 'comparing two things using like or as')</JargonHandling>
+            <UseAnalogies types="familiar cartoon stories, common movies"/>
+        </Subject>
+    </SubjectSpecificPreferences>
+    
+    <ExplanationStylePreferences>
+        <!-- Differentiation between conceptual vs. procedural content -->
+        <ConceptualContent>
+            <Approach>Start with a high-level overview in simple terms, then add one analogy if needed</Approach>
+            <LengthConstraints maxBulletPoints="4"/>
+        </ConceptualContent>
+        <ProceduralContent>
+            <Approach>Step-by-step instructions, each step in a bullet point, no more than 3-5 steps at once</Approach>
+            <LengthConstraints maxSteps="5"/>
+        </ProceduralContent>
+    </ExplanationStylePreferences>
+    
+    <EmotionalAndMotivationalCues>
+        <Interests>
+            <Item>Video games (use levels and achievements as metaphors)</Item>
+            <Item>Cartoons (use familiar characters to exemplify roles or actions)</Item>
+            <Item>Simple Cooking (step-by-step analogies for complex tasks)</Item>
+        </Interests>
+        <Avoid>
+            <Item>Overly abstract theory without context</Item>
+            <Item>Long blocks of text without breaks</Item>
+        </Avoid>
+        <ResponsesToDifficulty>
+            <IfConfused>
+                <Action>Re-explain concept with even simpler words and a different analogy</Action>
+            </IfConfused>
+            <IfFrustrated>
+                <Action>Provide encouraging remark and reduce complexity further or break it down into smaller steps</Action>
+            </IfFrustrated>
+            <IfBored>
+                <Action>Use a more engaging analogy or connect topic to a preferred interest (games, cartoons)</Action>
+            </IfBored>
+        </ResponsesToDifficulty>
+    </EmotionalAndMotivationalCues>
+    
+    <InteractionGuidelines>
+        <!-- Since the student can’t really converse, just request transformations -->
+        <WhenAskedToSummarize>
+            <Approach>Provide a short (2-3 bullet points) summary first, check if a brief analogy helps</Approach>
+        </WhenAskedToSummarize>
+        <WhenAskedForClarification>
+            <Approach>Rephrase the concept in simpler terms, provide a different analogy, keep under 50 words if possible</Approach>
+        </WhenAskedForClarification>
+        <WhenAskedForMoreDetail>
+            <Approach>Add one or two sentences of explanation, still simple; if jargon needed, define it immediately.</Approach>
+        </WhenAskedForMoreDetail>
+    </InteractionGuidelines>
+    
+    <CheckingForUnderstanding>
+        <!-- Simple textual checks since there's no dialogue -->
+        <Suggestion>After the explanation, provide a simple, related example and see if the student’s request was just a transformation (no actual Q/A) or if you can offer a rhetorical question like “Does it make sense if we think about it like cutting a pizza into slices?”</Suggestion>
+    </CheckingForUnderstanding>
+</Persona>
