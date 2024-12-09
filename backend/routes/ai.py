@@ -197,6 +197,75 @@ async def create_persona():
         print(f"Error details: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def evaluator(user_persona, request, material, feedback):
+    """
+    Placeholder function that evaluates an interaction and returns a score and reason
+    """
+    # Placeholder implementation
+    return (75, "Placeholder evaluation reason")
+
+def optimize_prompt(history, user_persona):
+    """
+    Placeholder function that optimizes the user persona based on history
+    """
+    # Placeholder implementation
+    return user_persona
+
+@router.post("/ai/learn")
+async def learn():
+    """
+    Endpoint to evaluate and optimize the learning process based on history
+    """
+    try:
+        if "history" not in data or "user_persona" not in data:
+            raise HTTPException(status_code=400, detail="History or user persona not found in data")
+
+        threshold = 70  # Score threshold for success
+        max_iterations = 5  # Maximum number of optimization attempts
+
+        for iteration in range(max_iterations):
+            total_score = 0
+            
+            # Score each interaction in history
+            for interaction in data["history"]:
+                score_data = evaluator(
+                    data["user_persona"],
+                    interaction.get("request"),
+                    interaction.get("material"),
+                    interaction.get("feedback")
+                )
+                interaction["score"] = {
+                    "value": score_data[0],  # Numeric score
+                    "reason": score_data[1]  # Reason for the score
+                }
+                total_score += score_data[0]
+            
+            # Calculate average score
+            average_score = total_score / len(data["history"])
+            
+            # If average score is above threshold, we're done
+            if average_score >= threshold:
+                # Clear history before returning
+                data["history"] = []
+                return {
+                    "status": "success",
+                    "message": "Learning optimization complete",
+                    "final_score": average_score
+                }
+            
+            # Otherwise, optimize the user persona
+            data["user_persona"] = optimize_prompt(data["history"], data["user_persona"])
+        
+        # If we reach here, we've hit max iterations without success
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Failed to achieve target score after {max_iterations} optimization attempts"
+        )
+
+    except Exception as e:
+        print(f"Error in learn endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 def groq_transcribe(buffer_data, api_key):
     url = "https://api.groq.com/openai/v1/audio/transcriptions"
     headers = {
