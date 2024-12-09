@@ -25,10 +25,9 @@ class InitialDataRequest(BaseModel):
     role: Role
     audio: str
     
-# class CustomPersonaRequest(BaseModel):
-#     student_data: str
-#     parent_data: str
-#     teacher_data: str
+class MultiModal(BaseModel):
+    prompt: str
+    image_base64: str
 
 class TextToSpeechRequest(BaseModel):
     text: str
@@ -46,6 +45,83 @@ async def ai_get():
     Test GET endpoint for AI route
     """
     return {"status": "ok", "message": "AI endpoint working"}
+
+@router.post("/ai/call-multimodal")
+async def multimodal_call(request: MultiModal):
+    """
+    Endpoint to call OpenAI API with a prompt and a base64-encoded image.
+    """
+    try:
+        print("Setting OpenAI API key...")  
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        print("Client initialized")
+        
+        if not client.api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+
+        # Clean the base64 string if it contains the data URL prefix
+        base64_image = request.image_base64
+        if ',' in base64_image:
+            base64_image = base64_image.split(',')[1]
+
+        # Prepare the API request
+        print("Making API call with vision model...")
+        
+        prompt=f'''You are given a user quesry and a custom persona. The persona is of a student and the query is the 
+        student asking questions related to his study materials. the uploaded image is a small snippet of what the student is 
+        learning and want personalisation in. Your job is to create a relevant answer suitable to the users query and image, 
+        the generated answer should strictly be aligned with the user persona of the student. 
+        
+        THE USER QUERY :
+        {request.prompt}
+        
+        THE USER PERSONA :
+        {data['student_persona']}
+        
+        '''
+        
+        response = client.chat.completions.create(
+            model="gpt-4-vision-preview",  # Using the correct model name
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt 
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300  # Limiting response length
+        )
+
+        if not response.choices:
+            raise HTTPException(status_code=500, detail="No response generated from the model")
+
+        response_text = response.choices[0].message.content
+        print(f"Got response text: {response_text[:50]}...")
+
+        return {
+            "status": "success",
+            "response": response_text
+        }
+
+    except openai.APIError as e:
+        print(f"OpenAI API Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OpenAI API Error: {str(e)}")
+    except ValueError as e:
+        print(f"Value Error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected Error: {type(e).__name__}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @router.post("/ai/call-llm")
 async def call_llm(request: PromptRequest):
@@ -80,7 +156,8 @@ async def call_llm(request: PromptRequest):
     except Exception as e:
         print(f"Error occurred: {type(e).__name__}")
         print(f"Error details: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))    
+
 
 @router.post("/ai/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
