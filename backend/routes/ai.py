@@ -22,10 +22,10 @@ class InitialDataRequest(BaseModel):
     role: Role
     audio: str
     
-class CustomPersonaRequest(BaseModel):
-    student_data: str
-    parent_data: str
-    teacher_data: str
+# class CustomPersonaRequest(BaseModel):
+#     student_data: str
+#     parent_data: str
+#     teacher_data: str
 
 @router.get("/ai")
 async def ai_get():
@@ -133,7 +133,7 @@ async def set_initial_data(request: InitialDataRequest):
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.post("/ai/create-user-persona")
-async def create_persona(request: CustomPersonaRequest):
+async def create_persona():
     try:
         print("Reading persona template...")
         template_path = os.path.join(os.path.dirname(__file__), 'persona_template.xml')
@@ -153,13 +153,13 @@ async def create_persona(request: CustomPersonaRequest):
         The information about the student are as follows with respect to different roles:
         
         INFORMATION FROM STUDENT HIMSELF:
-        {request.student_data}
+        {data['initial_data']["student"]}
         
         INFORMATION OF STUDENT FROM PARENT:
-        {request.parent_data}
+        {data['initial_data']["parent"]}
         
         INFORMATION OF STUDENT FROM TEACHER:
-        {request.teacher_data}
+        {data['initial_data']["teacher"]}
 
         Please fill in the template with appropriate information based on the following data:
         The below shows the sample template which you have to follow strictly:
@@ -168,6 +168,8 @@ async def create_persona(request: CustomPersonaRequest):
         Return only the filled XML template without any additional text."""
 
         print(f"Making API call with prompt...")
+        print(base_prompt)
+
         response = client.chat.completions.create(
             model="gpt-4o",  
             messages=[
@@ -178,7 +180,7 @@ async def create_persona(request: CustomPersonaRequest):
 
         response_text = response.choices[0].message.content
         print(f"Got response text: {response_text}...")
-        data["initial_data"]["student_persona"] = response_text
+        data["student_persona"] = response_text
         print(data)
 
 
