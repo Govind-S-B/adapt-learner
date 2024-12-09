@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 const loadingTexts = [
@@ -16,6 +16,8 @@ export function LoadingPage() {
 
   useEffect(() => {
     let currentIndex = 0;
+
+    // Change text every 3 seconds
     const interval = setInterval(() => {
       currentIndex = (currentIndex + 1) % loadingTexts.length;
       setCurrentText(loadingTexts[currentIndex]);
@@ -24,7 +26,7 @@ export function LoadingPage() {
     // Navigate to result page after 5 seconds
     const timer = setTimeout(() => {
       navigate('/result');
-    }, 5000);
+    }, 15000); // Adjusted to allow all quotes to cycle through
 
     return () => {
       clearInterval(interval);
@@ -40,17 +42,22 @@ export function LoadingPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
+        {/* Loading Spinner */}
         <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <motion.p
-          key={currentText}
-          className="text-xl text-gray-700 font-medium"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.5 }}
-        >
-          {currentText}
-        </motion.p>
+
+        {/* Animated Text */}
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={currentText}
+            className="text-xl text-gray-700 font-medium"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.5 }}
+          >
+            {currentText}
+          </motion.p>
+        </AnimatePresence>
       </motion.div>
     </div>
   );
