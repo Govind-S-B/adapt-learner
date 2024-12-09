@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { LoadingPage } from './LoadingPage';
 
 export function CardGrid() {
   const navigate = useNavigate();
   const [recordedOptions, setRecordedOptions] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Load recorded options from localStorage
@@ -25,7 +27,40 @@ export function CardGrid() {
     setRecordedOptions([]);
   };
 
+  const handleCreatePersona = async () => {
+    setIsLoading(true);
+    navigate('/loading');
+    
+    try {
+      const response = await fetch('http://localhost:8000/ai/create-user-persona', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create persona');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        // Navigation to result is handled by LoadingPage
+      } else {
+        throw new Error('Failed to create persona');
+      }
+    } catch (error) {
+      console.error('Error creating persona:', error);
+      setIsLoading(false);
+      navigate('/'); // Return to home on error
+    }
+  };
+
   const allOptionsRecorded = recordedOptions.length === 3;
+
+  if (isLoading) {
+    return <LoadingPage />;
+  }
 
   return (
     <div className="max-w-md mx-auto grid grid-cols-1 gap-4">
@@ -51,7 +86,7 @@ export function CardGrid() {
         >
           <p className="text-gray-600">All recordings completed!</p>
           <button
-            onClick={() => navigate('/loading')}
+            onClick={handleCreatePersona}
             className="px-6 py-3 bg-blue-500 text-white rounded-full shadow-md hover:bg-blue-600 transition-colors font-medium"
           >
             Create Persona
