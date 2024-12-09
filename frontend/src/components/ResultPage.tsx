@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Worker, Viewer } from '@react-pdf-viewer/core';
+import { Worker, Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core';
 import '@react-pdf-viewer/core/lib/styles/index.css';
-import '@react-pdf-viewer/zoom/lib/styles/index.css';
 import 'cropperjs/dist/cropper.css';
 import html2canvas from 'html2canvas';
 
@@ -21,11 +20,9 @@ export function ResultPage() {
   const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
   const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
   const [activeSelection, setActiveSelection] = useState<Selection | null>(null);
-  const [scale, setScale] = useState(1);
   
   const viewerContainerRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<HTMLDivElement>(null);
-  const pdfRef = useRef<HTMLDivElement>(null);
 
   // Adjust PDF viewport size based on screen size
   useEffect(() => {
@@ -40,39 +37,6 @@ export function ResultPage() {
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-
-  const handleZoom = (newScale: number) => {
-    setScale(Math.min(Math.max(0.5, newScale), 3));
-  };
-
-  const selectFullArea = () => {
-    if (!viewerContainerRef.current) return;
-    
-    // If there's already a full area selection, clear it
-    if (activeSelection) {
-      setActiveSelection(null);
-      return;
-    }
-
-    // Find the actual PDF page element
-    const pdfContainer = viewerContainerRef.current.querySelector('.rpv-core__viewer-content');
-    if (!pdfContainer) return;
-
-    // Get the visible area coordinates
-    const containerRect = viewerContainerRef.current.getBoundingClientRect();
-    const pdfRect = pdfContainer.getBoundingClientRect();
-
-    // Calculate coordinates relative to the container
-    const selection = {
-      x: 0,
-      y: 0,
-      width: pdfRect.width,
-      height: pdfRect.height
-    };
-    
-    console.log('Setting full area selection:', selection);
-    setActiveSelection(selection);
-  };
 
   // Handles file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,44 +88,74 @@ export function ResultPage() {
     setActiveSelection(null);
   };
 
+  const selectFullArea = () => {
+    if (!viewerContainerRef.current) return;
+    const viewerElement = viewerContainerRef.current.querySelector('.rpv-core__viewer-zone') as HTMLElement;
+    if (!viewerElement) return;
+    
+    const rect = viewerElement.getBoundingClientRect();
+    const selection = {
+      x: 0,
+      y: 0,
+      width: rect.width,
+      height: rect.height
+    };
+    
+    setActiveSelection(selection);
+  };
+
   const captureScreenshot = async (selection: Selection) => {
     if (!viewerContainerRef.current) {
       console.log('Debug: viewerContainerRef is null');
       return null;
     }
     
-    // Get the PDF viewer element
-    const pdfContainer = viewerContainerRef.current.querySelector('.rpv-core__viewer-content');
-    if (!pdfContainer) {
-      console.log('Debug: PDF container element not found');
+    // Try different selectors to find the PDF viewer element
+    const viewerElement = 
+      viewerContainerRef.current.querySelector('.rpv-core__viewer') || // Try first selector
+      viewerContainerRef.current.querySelector('[role="presentation"]') || // Try role
+      viewerContainerRef.current.querySelector('canvas'); // Try direct canvas
+    
+    if (!viewerElement) {
+      console.log('Debug: PDF viewer element not found. Available elements:', {
+        classes: viewerContainerRef.current.className,
+        children: Array.from(viewerContainerRef.current.children).map(child => ({
+          tagName: child.tagName,
+          className: (child as HTMLElement).className,
+          role: (child as HTMLElement).getAttribute('role')
+        }))
+      });
       return null;
     }
+
+    console.log('Debug: Found viewer element:', {
+      tagName: viewerElement.tagName,
+      className: viewerElement.className,
+      role: viewerElement.getAttribute('role')
+    });
 
     try {
       console.log('Debug: Starting screenshot capture');
       console.log('Debug: Selection area:', selection);
 
+      // Get the actual rendered PDF page
+      const pdfPage = viewerElement.closest('.rpv-core__viewer-page') || viewerElement;
+      
       // First capture the entire viewer
-      const canvas = await html2canvas(pdfContainer as HTMLElement, {
+      const canvas = await html2canvas(pdfPage as HTMLElement, {
         scale: window.devicePixelRatio || 1,
         logging: true,
         useCORS: true,
         allowTaint: true,
         backgroundColor: null,
         ignoreElements: (element) => {
-          // Ignore our selection overlay and any other UI elements
-          return element.classList.contains('absolute') || 
-                 element.classList.contains('border-2') ||
-                 element.classList.contains('rpv-core__annotation-layer') ||
-                 element.classList.contains('rpv-core__text-layer');
+          // Ignore our selection overlay
+          return element.classList.contains('absolute') && 
+                 element.classList.contains('border-2') && 
+                 element.classList.contains('border-blue-500');
         },
         onclone: (clonedDoc) => {
           console.log('Debug: Document cloned for capture');
-          // Apply current scale to the cloned element
-          const clonedContainer = clonedDoc.querySelector('.rpv-core__viewer-content');
-          if (clonedContainer) {
-            (clonedContainer as HTMLElement).style.transform = `scale(${scale})`;
-          }
         }
       });
 
@@ -169,14 +163,6 @@ export function ResultPage() {
         width: canvas.width,
         height: canvas.height
       });
-
-      // If it's a full area selection, return the entire canvas
-      if (selection.x === 0 && selection.y === 0 && 
-          selection.width === pdfContainer.getBoundingClientRect().width &&
-          selection.height === pdfContainer.getBoundingClientRect().height) {
-        console.log('Debug: Returning full area screenshot');
-        return canvas.toDataURL('image/png');
-      }
 
       // Create a new canvas for the cropped area
       const croppedCanvas = document.createElement('canvas');
@@ -321,36 +307,10 @@ export function ResultPage() {
               <h2 className="text-xl font-semibold text-gray-800">Output</h2>
               {uploadedFile && (
                 <div className="flex gap-2">
-                  {/* Zoom Controls */}
-                  <div className="flex items-center gap-2 mr-4">
-                    <button
-                      onClick={() => handleZoom(scale - 0.1)}
-                      className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-600"
-                      title="Zoom Out"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                      </svg>
-                    </button>
-                    <span className="text-sm text-gray-600">
-                      {Math.round(scale * 100)}%
-                    </span>
-                    <button
-                      onClick={() => handleZoom(scale + 0.1)}
-                      className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-600"
-                      title="Zoom In"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </button>
-                  </div>
                   <button
                     onClick={selectFullArea}
-                    className={`p-2 rounded ${
-                      activeSelection ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                    } flex items-center gap-1`}
-                    title={activeSelection ? "Clear Full Area Selection" : "Select Full Visible Area"}
+                    className="p-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center gap-1"
+                    title="Select Full Visible Area"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v16H4z" />
@@ -376,7 +336,7 @@ export function ResultPage() {
               {uploadedFile ? (
                 <div 
                   ref={viewerContainerRef}
-                  className="relative h-full"
+                  className="relative"
                   onMouseDown={handleMouseDown}
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
@@ -385,34 +345,13 @@ export function ResultPage() {
                   {/* PDF Viewer */}
                   <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
                     <div
-                      ref={pdfRef}
-                      className="w-full h-full select-none"
-                      style={{
-                        position: 'relative',
-                        overflow: 'auto'
-                      }}
+                      className="w-full"
+                      style={{ width: pdfViewportSize.width, height: pdfViewportSize.height }}
                     >
-                      {/* Add an overlay to prevent interactions except scrolling */}
-                      <div 
-                        className="absolute inset-0 z-10"
-                        style={{ 
-                          pointerEvents: isSelecting ? 'none' : 'auto',
-                          cursor: 'crosshair'
-                        }}
+                      <Viewer
+                        fileUrl={uploadedFile}
+                        defaultScale={SpecialZoomLevel.PageWidth}
                       />
-                      <div 
-                        className="[&_.rpv-core__text-layer]:select-none [&_.rpv-core__text-layer]:pointer-events-none"
-                        style={{
-                          transform: `scale(${scale})`,
-                          transformOrigin: 'top left',
-                          transition: 'transform 0.2s ease'
-                        }}
-                      >
-                        <Viewer
-                          fileUrl={uploadedFile}
-                          defaultScale={1}
-                        />
-                      </div>
                     </div>
                   </Worker>
 
@@ -420,7 +359,7 @@ export function ResultPage() {
                   {(isSelecting || activeSelection) && (
                     <div
                       ref={selectionRef}
-                      className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30 z-20"
+                      className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30"
                       style={{
                         left: isSelecting 
                           ? Math.min(selectionStart.x, selectionEnd.x) + 'px'
