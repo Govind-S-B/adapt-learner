@@ -9,6 +9,7 @@ https://vimeo.com/1018737829/ce8ca37ae2
 https://arxiv.org/abs/2411.10109  
 
 ![image](https://github.com/user-attachments/assets/98611d4e-2e08-468d-8be1-603f8bf4ffd6)
+![image](https://github.com/user-attachments/assets/00472c6b-8bdc-45d5-a9ab-02f074edba3b)
 
 
 ### Original Problem Statement
