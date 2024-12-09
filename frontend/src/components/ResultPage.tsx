@@ -16,6 +16,7 @@ export function ResultPage() {
   const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
   const [activeSelection, setActiveSelection] = useState<Selection | null>(null);
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Adjust PDF viewport size based on screen size
   useEffect(() => {
@@ -125,6 +126,7 @@ export function ResultPage() {
     console.group('Form Submission');
     console.log('Query Text:', queryText);
     
+    setIsLoading(true);
     let screenshotData = null;
     
     if (activeSelection) {
@@ -169,10 +171,13 @@ export function ResultPage() {
       } catch (error) {
         console.error('Error calling API:', error);
         setLlmOutput('Error: Failed to get response from the AI model');
+      } finally {
+        setIsLoading(false);
       }
     } else {
       console.error('No screenshot data available');
       setLlmOutput('Error: Failed to capture screenshot');
+      setIsLoading(false);
     }
     
     console.groupEnd();
@@ -203,6 +208,7 @@ export function ResultPage() {
           onQueryChange={setQueryText}
           onSubmit={handleSubmit}
           llmOutput={llmOutput}
+          isLoading={isLoading}
         />
       </div>
     </div>

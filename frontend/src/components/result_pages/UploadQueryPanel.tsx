@@ -6,6 +6,7 @@ interface UploadQueryPanelProps {
   onQueryChange: (text: string) => void;
   onSubmit: () => void;
   llmOutput?: string;
+  isLoading?: boolean;
 }
 
 export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
@@ -13,6 +14,7 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
   onQueryChange,
   onSubmit,
   llmOutput = '',
+  isLoading = false,
 }) => {
   const [showQuery, setShowQuery] = useState(false);
   const [activeMode, setActiveMode] = useState<'adapt' | 'summarize' | 'custom' | null>(null);
@@ -78,10 +80,25 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
             </div>
             <button 
               onClick={onSubmit}
-              className="flex-none w-full py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium shadow-sm mt-4"
+              disabled={isLoading}
+              className="flex-none w-full py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium shadow-sm mt-4 relative"
             >
-              Submit
+              {isLoading ? (
+                <>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  </div>
+                  <span className="opacity-0">Submit</span>
+                </>
+              ) : (
+                'Submit'
+              )}
             </button>
+            {isLoading && (
+              <div className="text-center mt-2 text-sm text-blue-600">
+                Generating answers suited to you...
+              </div>
+            )}
           </motion.div>
         )}
         
