@@ -21,6 +21,11 @@ class PromptRequest(BaseModel):
 class InitialDataRequest(BaseModel):
     role: Role
     audio: str
+    
+class CustomPersonaRequest(BaseModel):
+    student_data: str
+    parent_data: str
+    teacher_data: str
 
 @router.get("/ai")
 async def ai_get():
@@ -44,7 +49,7 @@ async def call_llm(request: PromptRequest):
 
         print(f"Making API call with prompt: {request.prompt[:50]}...")
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
                 {"role": "user", "content": request.prompt}
             ]
@@ -125,6 +130,69 @@ async def set_initial_data(request: InitialDataRequest):
 
     except Exception as e:
         print(f"Error in set_initial_data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/ai/create-user-persona")
+async def create_persona(request: InitialDataRequest):
+    try:
+        print("Reading persona template...")
+        template_path = os.path.join(os.path.dirname(__file__), 'persona_template.xml')
+        with open(template_path, 'r') as f:
+            persona_template = f.read()
+
+        print("Setting OpenAI API key...")
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        print("Client initialized")
+        
+        if not client.api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+
+        base_prompt = f"""
+        You are an expert people persona creator. You can create a custom user persona based on the data provided for a student.
+        The below data gives the details of a student in the perspective of his teacher, parent and the student himself.
+        The information about the student are as follows with respect to different roles:
+        
+        INFORMATION FROM STUDENT HIMSELF:
+        {request.student_data}
+        
+        INFORMATION OF STUDENT FROM PARENT:
+        {request.parent_data}
+        
+        INFORMATION OF STUDENT FROM TEACHER:
+        {request.teacher_data}
+
+        Please fill in the template with appropriate information based on the following data:
+        The below shows the sample template which you have to follow strictly:
+        {persona_template}
+        
+        Return only the filled XML template without any additional text."""
+
+        print(f"Making API call with prompt...")
+        response = client.chat.completions.create(
+            model="gpt-4o",  
+            messages=[
+                {"role": "user", "content": base_prompt}
+            ]
+        )
+        print("API call successful")
+
+        response_text = response.choices[0].message.content
+        print(f"Got response text: {response_text}...")
+        data["initial_data"]["student_persona"] = response_text
+        print(data)
+
+
+        return {
+            "status": "success",
+            "response": response_text
+        }
+
+    except FileNotFoundError:
+        print("Persona template file not found")
+        raise HTTPException(status_code=500, detail="Persona template file not found")
+    except Exception as e:
+        print(f"Error occurred: {type(e).__name__}")
+        print(f"Error details: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 def groq_transcribe(buffer_data, api_key):
