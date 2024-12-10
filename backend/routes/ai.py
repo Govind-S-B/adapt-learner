@@ -64,18 +64,27 @@ async def multimodal_call(request: MultiModal):
     Endpoint to call OpenAI API with a prompt and a base64-encoded image.
     """
     try:
-        print("Setting OpenAI API key...")  
+        print("[DEBUG] Starting multimodal_call endpoint")
+        print(f"[DEBUG] Received prompt length: {len(request.prompt)}")
+        print(f"[DEBUG] Received image_base64 length: {len(request.image_base64)}")
+
+        print("[DEBUG] Initializing OpenAI client...")
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        print("Client initialized")
+        print(f"[DEBUG] API key present: {bool(client.api_key)}")
         
         if not client.api_key:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
 
-        # Clean the base64 string if it contains the data URL prefix
+        print("[DEBUG] Cleaning base64 string...")
         base64_image = request.image_base64.split(',')[1] if ',' in request.image_base64 else request.image_base64
-        print(f"Received image: {base64_image[:50]}...")
-        print(f"Received prompt: {request.prompt[:50]}...")
+        print(f"[DEBUG] Cleaned base64 length: {len(base64_image)}")
 
+        print("[DEBUG] Checking if student_persona exists in data...")
+        if 'student_persona' not in data:
+            print("[DEBUG] Warning: student_persona not found in data")
+            data['student_persona'] = "No persona available"
+
+        print("[DEBUG] Constructing prompt...")
         prompt = f'''Analyze the provided image and user query to create a personalized educational response.
         Generate a response following this exact JSON schema:
         {{
@@ -89,57 +98,64 @@ async def multimodal_call(request: MultiModal):
         
         print(f"Prompt: {prompt}...")
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+        print("[DEBUG] Making OpenAI API call...")
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
                             }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=300,
-            response_format={"type": "json_object"}
-        )
+                        ]
+                    }
+                ],
+                max_tokens=300,
+                response_format={"type": "json_object"}
+            )
+            print("[DEBUG] OpenAI API call successful")
+        except Exception as e:
+            print(f"[DEBUG] OpenAI API call failed: {str(e)}")
+            raise
 
-        # Parse the response into our Pydantic model
-        result = MultiModalResponse.parse_raw(response.choices[0].message.content)
+        print("[DEBUG] Parsing response...")
+        try:
+            result = MultiModalResponse.parse_raw(response.choices[0].message.content)
+            print("[DEBUG] Response parsed successfully")
+        except Exception as e:
+            print(f"[DEBUG] Failed to parse response: {str(e)}")
+            print(f"[DEBUG] Raw response content: {response.choices[0].message.content}")
+            raise
 
-        # Generate image using the extracted prompt
+        print("[DEBUG] Generating image...")
         image_base64 = None
         try:
             response = await generate_image(result.image_prompt)
+            print("[DEBUG] Image generation completed")
             if isinstance(response, Response):
                 image_base64 = base64.b64encode(response.body).decode('utf-8')
-                # Add the image to the chat response in markdown format
                 result.chat_response += f"\n\n![Generated Image](data:image/png;base64,{image_base64})"
+                print("[DEBUG] Image added to response")
         except Exception as e:
-            print(f"Error generating image: {str(e)}")
-            # Continue execution even if image generation fails
+            print(f"[DEBUG] Image generation failed: {str(e)}")
 
-        # Generate audio from the summary script
-        audio_response = None
+        print("[DEBUG] Generating audio...")
+        audio_base64 = None
         try:
             audio_request = TextToSpeechRequest(text=result.summary_script)
             audio_response = await generate_audio(audio_request)
             audio_base64 = base64.b64encode(audio_response.body).decode('utf-8') if audio_response else None
+            print("[DEBUG] Audio generation completed")
         except Exception as e:
-            print(f"Error generating audio: {str(e)}")
-            audio_base64 = None
+            print(f"[DEBUG] Audio generation failed: {str(e)}")
 
-        print(f"Chat response: {result.chat_response}")
-        print(f"Image prompt: {result.image_prompt}")
-        print(f"Summary script: {result.summary_script}")
-        print(f"Image base64: {image_base64}")
-        print(f"Audio base64: {audio_base64}")
-
+        print("[DEBUG] Preparing final response")
         return {
             "status": "success",
             "response": result.chat_response,
@@ -148,10 +164,13 @@ async def multimodal_call(request: MultiModal):
         }
 
     except openai.APIError as e:
+        print(f"[DEBUG] OpenAI API Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OpenAI API Error: {str(e)}")
     except ValueError as e:
+        print(f"[DEBUG] Value Error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
     except Exception as e:
+        print(f"[DEBUG] Unexpected error: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @router.post("/ai/call-llm")

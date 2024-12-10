@@ -10,6 +10,7 @@ export function ResultPage() {
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [queryText, setQueryText] = useState('');
   const [llmOutput, setLlmOutput] = useState('');
+  const [audioData, setAudioData] = useState<string | null>(null);
   const [pdfViewportSize, setPdfViewportSize] = useState({ width: 800, height: 600 });
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
@@ -168,6 +169,7 @@ export function ResultPage() {
 
         const data = await response.json();
         setLlmOutput(data.response);
+        setAudioData(data.audio_base64);
         console.log('API Response:', data.response);
       } catch (error) {
         console.error('Error calling API:', error);
@@ -210,6 +212,7 @@ export function ResultPage() {
           onSubmit={handleSubmit}
           llmOutput={llmOutput}
           isLoading={isLoading}
+          audioBase64={audioData}
         />
       </div>
     </div>

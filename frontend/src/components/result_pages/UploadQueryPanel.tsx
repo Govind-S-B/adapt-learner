@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Markdown from 'markdown-to-jsx';
 
@@ -8,6 +8,7 @@ interface UploadQueryPanelProps {
   onSubmit: () => void;
   llmOutput?: string;
   isLoading?: boolean;
+  audioBase64?: string | null;
 }
 
 export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
@@ -16,9 +17,12 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
   onSubmit,
   llmOutput = '',
   isLoading = false,
+  audioBase64,
 }) => {
   const [showQuery, setShowQuery] = useState(false);
   const [activeMode, setActiveMode] = useState<'adapt' | 'summarize' | 'custom' | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleModeSelect = (mode: 'adapt' | 'summarize' | 'custom') => {
     setActiveMode(mode);
@@ -30,6 +34,21 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
       onQueryChange(mode === 'adapt' ? 'Adapt this content for learning' : 'Summarize this content');
       onSubmit();
     }
+  };
+
+  const handlePlayAudio = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
   };
 
   return (
@@ -106,7 +125,34 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
         <div className="flex-1 min-h-0">
           {llmOutput && (
             <div className="mt-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Response</h3>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-lg font-semibold text-gray-800">Response</h3>
+                {audioBase64 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handlePlayAudio}
+                      className="flex items-center justify-center p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                      title={isPlaying ? "Pause" : "Play Audio"}
+                    >
+                      {isPlaying ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </button>
+                    <audio
+                      ref={audioRef}
+                      src={`data:audio/mp3;base64,${audioBase64}`}
+                      onEnded={handleAudioEnded}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                )}
+              </div>
               <div className="p-4 bg-gray-50 rounded-lg overflow-auto max-h-[500px]">
                 <Markdown
                   options={{
