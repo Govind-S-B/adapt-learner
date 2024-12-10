@@ -726,14 +726,6 @@ async def store_feedback(feedback_data: FeedbackRequest):
         data["history"].append(history_entry)
         
         # Write data to file
-        with open('feedback_history.txt', 'a') as f:
-            f.write(f"\n\n--- New Feedback Entry ---\n")
-            f.write(f"Timestamp: {datetime.datetime.now()}\n")
-            f.write(f"Request: {feedback_data.request}\n")
-            f.write(f"Output: {feedback_data.output}\n")
-            f.write(f"Feedback: {feedback_data.feedback}\n")
-            f.write(f"Material: {material}\n")
-            f.write("------------------------\n")
         
         print("Data:", data)
         return {

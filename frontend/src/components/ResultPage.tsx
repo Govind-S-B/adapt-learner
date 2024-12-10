@@ -5,6 +5,8 @@ import html2canvas from 'html2canvas';
 import { UploadQueryPanel } from './result_pages/UploadQueryPanel';
 import { PDFViewer } from './result_pages/PDFViewer';
 import { Selection } from './result_pages/types';
+import SparkleButton from './SparkleButton';
+import '../styles/SparkleButton.css';
 
 export function ResultPage() {
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
@@ -218,9 +220,11 @@ export function ResultPage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-blue-50">
-      {/* <Header /> */}
       <div className="flex flex-1 min-h-0">
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center relative">
+          <SparkleButton onClick={() => {
+            console.log('Sparkle button clicked!');
+          }} />
           <PDFViewer
             uploadedFile={uploadedFile}
             pdfViewportSize={pdfViewportSize}
