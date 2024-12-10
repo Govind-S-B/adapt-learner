@@ -3,6 +3,16 @@ project for ai samasya hackathon. using a novel eval based prompt/policy optimiz
 
 TLDR ; an AI course material assisting copilot that knows about you and learns more without any heavy computation involved making it more transparent and flexible.
 
+### How to run it
+```
+cd backend
+python main.py
+```
+```
+cd frontend
+npm run dev
+```
+
 Primary reasearch is around o1 series of models and policy optimization using RLHF methods
 https://vimeo.com/1023317525/be082a1029 
 https://vimeo.com/1018737829/ce8ca37ae2  
