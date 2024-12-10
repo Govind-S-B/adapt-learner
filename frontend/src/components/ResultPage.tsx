@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import 'cropperjs/dist/cropper.css';
 import html2canvas from 'html2canvas';
-import { Header } from './result_pages/Header';
+// import { Header } from './result_pages/Header';
 import { UploadQueryPanel } from './result_pages/UploadQueryPanel';
 import { PDFViewer } from './result_pages/PDFViewer';
 import { Selection } from './result_pages/types';
