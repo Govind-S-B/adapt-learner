@@ -10,6 +10,7 @@ import base64
 from typing import List
 import textwrap
 import aiohttp
+import json
 
 router = APIRouter()
 
@@ -287,19 +288,120 @@ async def create_persona():
         print(f"Error details: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-def evaluator(user_persona, request, material, feedback):
+async def evaluator(user_persona, request, material_image_url, output, feedback):
     """
-    Placeholder function that evaluates an interaction and returns a score and reason
+    Evaluates an interaction and returns a score and reason using GPT-4V
+    
+    Args:
+        user_persona (str): The student's persona
+        request (str): The student's original request
+        material_image_url (str): URL or base64 of the image being worked with
+        output (str): The response given to the student
+        feedback (str): The student's feedback on the response
+    
+    Returns:
+        tuple: (score, reason)
     """
-    # Placeholder implementation
-    return (75, "Placeholder evaluation reason")
+    try:
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        prompt = f"""You are an expert evaluator of a student's learning.
+        Evaluate the interaction and return ONLY a JSON object with exactly two fields:
+        - score: a number between 0 and 100
+        - reason: a brief explanation for the score
+
+        Consider:
+        1. How well the response matched the student's persona
+        2. How accurately the image was interpreted
+        3. How helpful the response was based on the student's feedback
+
+        DO NOT include any other text besides the JSON object."""
+
+        response = client.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": material_image_url
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": f"""STUDENT PERSONA: {user_persona}
+                            STUDENT REQUEST: {request}
+                            OUTPUT GIVEN: {output}
+                            STUDENT FEEDBACK: {feedback}"""
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300,
+            response_format={ "type": "json_object" }  # Enforce JSON output
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        return (result["score"], result["reason"])
+
+    except Exception as e:
+        print(f"Error in evaluator: {str(e)}")
+        return (0, f"Evaluation failed: {str(e)}")
 
 def optimize_prompt(history, user_persona):
     """
-    Placeholder function that optimizes the user persona based on history
+    Function that optimizes the user persona based on interaction history
     """
-    # Placeholder implementation
-    return user_persona
+    try:
+        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        # Create a filtered version of history without image URLs
+        filtered_history = [{
+            "request": item["request"],
+            "output": item["output"],
+            "feedback": item["feedback"],
+            "score": item.get("score", {})
+        } for item in history]
+        
+        prompt = f"""You are an expert in analyzing learning interactions and optimizing student personas.
+        Based on the provided interaction history and current user persona, create an optimized version of the persona
+        that addresses any weaknesses or gaps identified in the learning process.
+
+        Current User Persona:
+        {user_persona}
+
+        Interaction History:
+        {json.dumps(filtered_history, indent=2)}
+
+        Analyze the scores and feedback in the history to identify:
+        1. Areas where responses didn't match the student's needs
+        2. Patterns in successful interactions
+        3. Common themes in feedback
+        4. Score patterns and their reasons
+
+        Return ONLY a JSON object with a single key 'new_user_persona' containing the optimized persona.
+        The new persona should maintain the same XML structure as the original but with optimized content."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            response_format={ "type": "json_object" }
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        return result["new_user_persona"]
+
+    except Exception as e:
+        print(f"Error in optimize_prompt: {str(e)}")
+        return user_persona  # Return original persona if optimization fails
 
 @router.post("/ai/learn")
 async def learn():
@@ -310,7 +412,7 @@ async def learn():
         if "history" not in data or "user_persona" not in data:
             raise HTTPException(status_code=400, detail="History or user persona not found in data")
 
-        threshold = 70  # Score threshold for success
+        threshold = 60  # Score threshold for success
         max_iterations = 5  # Maximum number of optimization attempts
 
         for iteration in range(max_iterations):
@@ -318,10 +420,11 @@ async def learn():
             
             # Score each interaction in history
             for interaction in data["history"]:
-                score_data = evaluator(
+                score_data = await evaluator(
                     data["user_persona"],
                     interaction.get("request"),
                     interaction.get("material"),
+                    interaction.get("output"),
                     interaction.get("feedback")
                 )
                 interaction["score"] = {
