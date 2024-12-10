@@ -73,6 +73,8 @@ async def multimodal_call(request: MultiModal):
 
         # Clean the base64 string if it contains the data URL prefix
         base64_image = request.image_base64.split(',')[1] if ',' in request.image_base64 else request.image_base64
+        print(f"Received image: {base64_image[:50]}...")
+        print(f"Received prompt: {request.prompt[:50]}...")
 
         prompt = f'''Analyze the provided image and user query to create a personalized educational response.
         Generate a response following this exact JSON schema:
@@ -84,9 +86,11 @@ async def multimodal_call(request: MultiModal):
 
         THE USER QUERY: {request.prompt}
         THE USER PERSONA: {data['student_persona']}'''
+        
+        print(f"Prompt: {prompt}...")
 
         response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
@@ -129,6 +133,12 @@ async def multimodal_call(request: MultiModal):
         except Exception as e:
             print(f"Error generating audio: {str(e)}")
             audio_base64 = None
+
+        print(f"Chat response: {result.chat_response}")
+        print(f"Image prompt: {result.image_prompt}")
+        print(f"Summary script: {result.summary_script}")
+        print(f"Image base64: {image_base64}")
+        print(f"Audio base64: {audio_base64}")
 
         return {
             "status": "success",

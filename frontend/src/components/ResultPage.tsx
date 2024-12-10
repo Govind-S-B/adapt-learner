@@ -168,6 +168,7 @@ export function ResultPage() {
 
         const data = await response.json();
         setLlmOutput(data.response);
+        console.log('API Response:', data.response);
       } catch (error) {
         console.error('Error calling API:', error);
         setLlmOutput('Error: Failed to get response from the AI model');

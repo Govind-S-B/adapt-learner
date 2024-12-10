@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import Markdown from 'markdown-to-jsx';
 
 interface UploadQueryPanelProps {
   queryText: string;
@@ -103,12 +104,30 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
         )}
         
         <div className="flex-1 min-h-0">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Your personalised answer</label>
-          <div className="h-full bg-gray-50 rounded-lg border border-gray-200 p-4 overflow-auto">
-            <pre className="whitespace-pre-wrap text-sm text-gray-600 font-sans">
-              {llmOutput || 'No response yet...'}
-            </pre>
-          </div>
+          {llmOutput && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Response</h3>
+              <div className="p-4 bg-gray-50 rounded-lg overflow-auto max-h-[500px]">
+                <Markdown
+                  options={{
+                    overrides: {
+                      img: {
+                        component: ({ alt, src }) => (
+                          <img 
+                            alt={alt} 
+                            src={src} 
+                            className="max-w-full h-auto my-4 rounded-lg shadow-lg"
+                          />
+                        ),
+                      },
+                    },
+                  }}
+                >
+                  {llmOutput}
+                </Markdown>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
