@@ -46,6 +46,11 @@ class FeedbackRequest(BaseModel):
     output: str
     feedback: str
 
+class MultiModalResponse(BaseModel):
+    chat_response: str
+    image_prompt: str
+    summary_script: str
+
 @router.get("/ai")
 async def ai_get():
     """
@@ -67,49 +72,26 @@ async def multimodal_call(request: MultiModal):
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
 
         # Clean the base64 string if it contains the data URL prefix
-        base64_image = request.image_base64
-        if ',' in base64_image:
-            base64_image = base64_image.split(',')[1]
+        base64_image = request.image_base64.split(',')[1] if ',' in request.image_base64 else request.image_base64
 
-        # Prepare the API request
-        print("Making API call with vision model...")
-        
-        prompt=f'''You are given a user quesry and a custom persona. The persona is of a student and the query is the 
-        student asking questions related to his study materials. the uploaded image is a small snippet of what the student is 
-        learning and want personalisation in. Your job is to create a relevant answer suitable to the users query and image, 
-        the generated answer should strictly be aligned with the user persona of the student. In your output,
-        also generate a prompt to generate an image relevant to the users query and materials. Also generate a summary scrip of 
-        the response which will be later converted to audio. DONOT ADD SPECIAL CHARACTERS to the responses. STRICTLY ALIGN TO THE FORMAT GIVEN
-        
-        THE USER QUERY :
-        {request.prompt}
-        
-        THE USER PERSONA :
-        {data['student_persona']}
-        
-        The output should be strictly in the following format: 
-        
-        CHAT_RESPONSE :
-        <answer to users query with his persona in mind>
-        
-        IMAGE_PROMPT :
-        <prompt to generate an image relevant to the users query and materials>
-        
-        SUMMARY_SCRIPT :
-        <summary script of the response which will be later converted to audio>
-        
-        '''
-        
+        prompt = f'''Analyze the provided image and user query to create a personalized educational response.
+        Generate a response following this exact JSON schema:
+        {{
+            "chat_response": "A detailed, personalized answer to the user's query that matches their learning style and needs",
+            "image_prompt": "A clear, detailed prompt to generate an image relevant to the educational content",
+            "summary_script": "A concise, natural-sounding script suitable for text-to-speech conversion that summarizes the key points"
+        }}
+
+        THE USER QUERY: {request.prompt}
+        THE USER PERSONA: {data['student_persona']}'''
+
         response = client.chat.completions.create(
-            model="gpt-4o",  # Using the correct model name
+            model="gpt-4-vision-preview",
             messages=[
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "text",
-                            "text": prompt 
-                        },
+                        {"type": "text", "text": prompt},
                         {
                             "type": "image_url",
                             "image_url": {
@@ -119,69 +101,49 @@ async def multimodal_call(request: MultiModal):
                     ]
                 }
             ],
-            max_tokens=300  # Limiting response length
+            max_tokens=300,
+            response_format={"type": "json_object"}
         )
 
-        if not response.choices:
-            raise HTTPException(status_code=500, detail="No response generated from the model")
+        # Parse the response into our Pydantic model
+        result = MultiModalResponse.parse_raw(response.choices[0].message.content)
 
-        response_text = response.choices[0].message.content
-        print(f"Got response text: {response_text[:50]}...")
-
-        # Extract content under CHAT_RESPONSE
-        chat_response = ""
-        image_prompt = ""  # Initialize image prompt variable
-        
-        if "CHAT_RESPONSE" in response_text:
-            print("Found CHAT_RESPONSE marker")
-            sections = response_text.split("CHAT_RESPONSE")
-            if len(sections) > 1:
-                chat_response = sections[1].split("IMAGE_PROMPT")[0].strip()
-                print(f"Extracted chat response: {chat_response[:50]}...")
-        else:
-            print("CHAT_RESPONSE marker not found in:", response_text)
-
-        if "IMAGE_PROMPT" in response_text:
-            print("Found IMAGE_PROMPT marker")
-            sections = response_text.split("IMAGE_PROMPT")
-            if len(sections) > 1:
-                image_prompt = sections[1].strip()
-                print(f"Extracted image prompt: {image_prompt[:50]}...")
-        else:
-            print("IMAGE_PROMPT marker not found in response")
-            
         # Generate image using the extracted prompt
-        generated_image = None
         image_base64 = None
-        if image_prompt:
-            try:
-                response = await generate_image(image_prompt)
-                if isinstance(response, Response):
-                    # Convert binary image data to base64
-                    image_base64 = base64.b64encode(response.body).decode('utf-8')
-                    # Add the image to the chat response in markdown format
-                    chat_response += f"\n\n![Generated Image](data:image/png;base64,{image_base64})"
-                print("Successfully generated image from prompt")
-                print(f"Generated image base64: {image_base64[:50]}...")
-            except Exception as e:
-                print(f"Error generating image: {str(e)}")
-                # Continue execution even if image generation fails
+        try:
+            response = await generate_image(result.image_prompt)
+            if isinstance(response, Response):
+                image_base64 = base64.b64encode(response.body).decode('utf-8')
+                # Add the image to the chat response in markdown format
+                result.chat_response += f"\n\n![Generated Image](data:image/png;base64,{image_base64})"
+        except Exception as e:
+            print(f"Error generating image: {str(e)}")
+            # Continue execution even if image generation fails
+
+        # Generate audio from the summary script
+        audio_response = None
+        try:
+            audio_request = TextToSpeechRequest(text=result.summary_script)
+            audio_response = await generate_audio(audio_request)
+            audio_base64 = base64.b64encode(audio_response.body).decode('utf-8') if audio_response else None
+        except Exception as e:
+            print(f"Error generating audio: {str(e)}")
+            audio_base64 = None
 
         return {
             "status": "success",
-            "response": chat_response,
-            "image_prompt": image_prompt,
-            "image_base64": image_base64
-            }
+            "response": result.chat_response,
+            "image_prompt": result.image_prompt,
+            "summary_script": result.summary_script,
+            "image_base64": image_base64,
+            "audio_base64": audio_base64
+        }
 
     except openai.APIError as e:
-        print(f"OpenAI API Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OpenAI API Error: {str(e)}")
     except ValueError as e:
-        print(f"Value Error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
     except Exception as e:
-        print(f"Unexpected Error: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @router.post("/ai/call-llm")
