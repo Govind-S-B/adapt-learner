@@ -22,6 +22,8 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
   const [showQuery, setShowQuery] = useState(false);
   const [activeMode, setActiveMode] = useState<'adapt' | 'summarize' | 'custom' | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedback, setFeedback] = useState('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleModeSelect = (mode: 'adapt' | 'summarize' | 'custom') => {
@@ -49,6 +51,33 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
 
   const handleAudioEnded = () => {
     setIsPlaying(false);
+  };
+
+  const handleFeedbackSubmit = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/ai/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          request: queryText,
+          material: '',
+          output: llmOutput,
+          feedback: feedback,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      setFeedback('');
+      setShowFeedbackModal(false);
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      alert('Failed to submit feedback. Please try again.');
+    }
   };
 
   return (
@@ -127,31 +156,42 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
             <div className="mt-6">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-lg font-semibold text-gray-800">Response</h3>
-                {audioBase64 && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handlePlayAudio}
-                      className="flex items-center justify-center p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
-                      title={isPlaying ? "Pause" : "Play Audio"}
-                    >
-                      {isPlaying ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </button>
-                    <audio
-                      ref={audioRef}
-                      src={`data:audio/mp3;base64,${audioBase64}`}
-                      onEnded={handleAudioEnded}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowFeedbackModal(true)}
+                    className="flex items-center justify-center p-2 rounded-full bg-green-500 hover:bg-green-600 text-white transition-colors"
+                    title="Give Feedback"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {audioBase64 && (
+                    <>
+                      <button
+                        onClick={handlePlayAudio}
+                        className="flex items-center justify-center p-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                        title={isPlaying ? "Pause" : "Play Audio"}
+                      >
+                        {isPlaying ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                      <audio
+                        ref={audioRef}
+                        src={`data:audio/mp3;base64,${audioBase64}`}
+                        onEnded={handleAudioEnded}
+                        style={{ display: 'none' }}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg overflow-auto max-h-[500px]">
                 <Markdown
@@ -175,6 +215,35 @@ export const UploadQueryPanel: React.FC<UploadQueryPanelProps> = ({
             </div>
           )}
         </div>
+
+        {/* Feedback Modal */}
+        {showFeedbackModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+              <h3 className="text-xl font-semibold mb-4">Provide Feedback</h3>
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="w-full h-32 p-3 border border-gray-300 rounded resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+                placeholder="Share your thoughts about the response..."
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowFeedbackModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFeedbackSubmit}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Submit Feedback
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

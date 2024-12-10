@@ -11,6 +11,7 @@ from typing import List
 import textwrap
 import aiohttp
 import json
+import datetime
 
 router = APIRouter()
 
@@ -367,7 +368,7 @@ async def evaluator(user_persona, request, material_image_url, output, feedback)
         DO NOT include any other text besides the JSON object."""
 
         response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
@@ -704,10 +705,19 @@ async def store_feedback(feedback_data: FeedbackRequest):
     Endpoint to store interaction feedback in history
     """
     try:
+        # Extract base64 image if present in output
+        material = ""
+        if "data:image/png;base64," in feedback_data.output:
+            start_idx = feedback_data.output.find("data:image/png;base64,")
+            material = feedback_data.output[start_idx:]
+            # If there's content after the base64 string, trim it
+            if "\n" in material:
+                material = material.split("\n")[0]
+
         # Create history entry
         history_entry = {
             "request": feedback_data.request,
-            "material": feedback_data.material,
+            "material": material,  # Store extracted base64 image string
             "output": feedback_data.output,
             "feedback": feedback_data.feedback
         }
@@ -715,6 +725,17 @@ async def store_feedback(feedback_data: FeedbackRequest):
         # Add to history array in data singleton
         data["history"].append(history_entry)
         
+        # Write data to file
+        with open('feedback_history.txt', 'a') as f:
+            f.write(f"\n\n--- New Feedback Entry ---\n")
+            f.write(f"Timestamp: {datetime.datetime.now()}\n")
+            f.write(f"Request: {feedback_data.request}\n")
+            f.write(f"Output: {feedback_data.output}\n")
+            f.write(f"Feedback: {feedback_data.feedback}\n")
+            f.write(f"Material: {material}\n")
+            f.write("------------------------\n")
+        
+        print("Data:", data)
         return {
             "status": "success",
             "message": "Feedback stored successfully"

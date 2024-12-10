@@ -18,6 +18,7 @@ export function ResultPage() {
   const [activeSelection, setActiveSelection] = useState<Selection | null>(null);
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string>('');
 
   // Adjust PDF viewport size based on screen size
   useEffect(() => {
@@ -186,6 +187,35 @@ export function ResultPage() {
     console.groupEnd();
   };
 
+  const handleFeedbackSubmit = async () => {
+    try {
+      console.log("Screenshot Data : ",screenshotData)
+      const response = await fetch('http://localhost:8000/ai/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          request: queryText,
+          material: screenshotData,
+          output: llmOutput,
+          feedback: feedback
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit feedback');
+      }
+
+      // Clear feedback after successful submission
+      setFeedback('');
+      alert('Feedback submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      alert('Failed to submit feedback');
+    }
+  };
+
   return (
     <div className="fixed inset-0 flex flex-col bg-blue-50">
       {/* <Header /> */}
@@ -213,6 +243,9 @@ export function ResultPage() {
           llmOutput={llmOutput}
           isLoading={isLoading}
           audioBase64={audioData}
+          feedback={feedback}
+          onFeedbackChange={setFeedback}
+          onFeedbackSubmit={handleFeedbackSubmit}
         />
       </div>
     </div>
