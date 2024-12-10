@@ -133,8 +133,6 @@ async def multimodal_call(request: MultiModal):
         return {
             "status": "success",
             "response": result.chat_response,
-            "image_prompt": result.image_prompt,
-            "summary_script": result.summary_script,
             "image_base64": image_base64,
             "audio_base64": audio_base64
         }
