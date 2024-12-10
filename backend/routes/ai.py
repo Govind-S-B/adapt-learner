@@ -40,6 +40,12 @@ class ImageGenerationRequest(BaseModel):
     steps: int = 1
     n: int = 1
 
+class FeedbackRequest(BaseModel):
+    request: str
+    material: str
+    output: str
+    feedback: str
+
 @router.get("/ai")
 async def ai_get():
     """
@@ -588,4 +594,30 @@ async def generate_image(request: ImageGenerationRequest):
 
     except Exception as e:
         print(f"Error in generate_image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.post("/ai/feedback")
+async def store_feedback(feedback_data: FeedbackRequest):
+    """
+    Endpoint to store interaction feedback in history
+    """
+    try:
+        # Create history entry
+        history_entry = {
+            "request": feedback_data.request,
+            "material": feedback_data.material,
+            "output": feedback_data.output,
+            "feedback": feedback_data.feedback
+        }
+        
+        # Add to history array in data singleton
+        data["history"].append(history_entry)
+        
+        return {
+            "status": "success",
+            "message": "Feedback stored successfully"
+        }
+
+    except Exception as e:
+        print(f"Error storing feedback: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
