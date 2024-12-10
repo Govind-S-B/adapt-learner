@@ -1,3 +1,18 @@
+"""
+Data singleton to store application state.
+
+History objects have the following structure:
+{
+    "request": str,      # The request/question from the user
+    "material": str,     # The learning material or content
+    "feedback": str,     # Feedback provided for the interaction
+    "score": {          # Added during learning process
+        "value": float, # Score between 0-100
+        "reason": str   # Explanation for the score
+    }
+}
+"""
+
 data = {
     "initial_data":{
         "teacher":"",
@@ -5,5 +20,5 @@ data = {
         "student":""
     },
     "student_persona":"",
-    "history":[],
+    "history":[],  # Array of interaction objects as described above
 }

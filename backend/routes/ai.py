@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, Response
 from pydantic import BaseModel
 from enum import Enum
 from singletons.data import data
@@ -7,6 +7,9 @@ import os
 import io
 import requests
 import base64
+from typing import List
+import textwrap
+import aiohttp
 
 router = APIRouter()
 
@@ -25,6 +28,16 @@ class InitialDataRequest(BaseModel):
 class MultiModal(BaseModel):
     prompt: str
     image_base64: str
+
+class TextToSpeechRequest(BaseModel):
+    text: str
+
+class ImageGenerationRequest(BaseModel):
+    prompt: str
+    width: int = 1024
+    height: int = 768
+    steps: int = 1
+    n: int = 1
 
 @router.get("/ai")
 async def ai_get():
@@ -274,6 +287,75 @@ async def create_persona():
         print(f"Error details: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def evaluator(user_persona, request, material, feedback):
+    """
+    Placeholder function that evaluates an interaction and returns a score and reason
+    """
+    # Placeholder implementation
+    return (75, "Placeholder evaluation reason")
+
+def optimize_prompt(history, user_persona):
+    """
+    Placeholder function that optimizes the user persona based on history
+    """
+    # Placeholder implementation
+    return user_persona
+
+@router.post("/ai/learn")
+async def learn():
+    """
+    Endpoint to evaluate and optimize the learning process based on history
+    """
+    try:
+        if "history" not in data or "user_persona" not in data:
+            raise HTTPException(status_code=400, detail="History or user persona not found in data")
+
+        threshold = 70  # Score threshold for success
+        max_iterations = 5  # Maximum number of optimization attempts
+
+        for iteration in range(max_iterations):
+            total_score = 0
+            
+            # Score each interaction in history
+            for interaction in data["history"]:
+                score_data = evaluator(
+                    data["user_persona"],
+                    interaction.get("request"),
+                    interaction.get("material"),
+                    interaction.get("feedback")
+                )
+                interaction["score"] = {
+                    "value": score_data[0],  # Numeric score
+                    "reason": score_data[1]  # Reason for the score
+                }
+                total_score += score_data[0]
+            
+            # Calculate average score
+            average_score = total_score / len(data["history"])
+            
+            # If average score is above threshold, we're done
+            if average_score >= threshold:
+                # Clear history before returning
+                data["history"] = []
+                return {
+                    "status": "success",
+                    "message": "Learning optimization complete",
+                    "final_score": average_score
+                }
+            
+            # Otherwise, optimize the user persona
+            data["user_persona"] = optimize_prompt(data["history"], data["user_persona"])
+        
+        # If we reach here, we've hit max iterations without success
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Failed to achieve target score after {max_iterations} optimization attempts"
+        )
+
+    except Exception as e:
+        print(f"Error in learn endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 def groq_transcribe(buffer_data, api_key):
     url = "https://api.groq.com/openai/v1/audio/transcriptions"
     headers = {
@@ -294,3 +376,113 @@ def groq_transcribe(buffer_data, api_key):
         raise Exception(f"Groq API request failed with status code {response.status_code}: {response.text}")
     
     return transcribed_str 
+
+@router.post("/ai/gen-audio")
+async def generate_audio(request: TextToSpeechRequest):
+    """
+    Endpoint to convert text to speech using Deepgram API
+    """
+    try:
+        deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
+        if not deepgram_api_key:
+            raise HTTPException(status_code=500, detail="Deepgram API key not configured")
+
+        # Split text into chunks of 2000 characters
+        text_chunks = textwrap.wrap(request.text, 2000, break_long_words=False, break_on_hyphens=False)
+        
+        audio_chunks: List[bytes] = []
+        
+        async with aiohttp.ClientSession() as session:
+            for chunk in text_chunks:
+                headers = {
+                    "Authorization": f"Token {deepgram_api_key}",
+                    "Content-Type": "text/plain"
+                }
+                
+                url = "https://api.deepgram.com/v1/speak?model=aura-asteria-en"
+                
+                async with session.post(url, headers=headers, data=chunk) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise HTTPException(
+                            status_code=response.status,
+                            detail=f"Deepgram API request failed: {error_text}"
+                        )
+                    
+                    audio_chunk = await response.read()
+                    audio_chunks.append(audio_chunk)
+        
+        # Combine all audio chunks
+        combined_audio = b''.join(audio_chunks)
+        
+        # Return the audio as a response with appropriate headers
+        return Response(
+            content=combined_audio,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=generated_audio.mp3"
+            }
+        )
+
+    except Exception as e:
+        print(f"Error in generate_audio: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
+
+@router.post("/ai/gen-image")
+async def generate_image(request: ImageGenerationRequest):
+    """
+    Endpoint to generate images using Together AI API
+    """
+    try:
+        together_api_key = os.getenv("TOGETHER_API_KEY")
+        if not together_api_key:
+            raise HTTPException(status_code=500, detail="Together AI API key not configured")
+
+        url = "https://api.together.xyz/v1/images/generations"
+        headers = {
+            "Authorization": f"Bearer {together_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "black-forest-labs/FLUX.1-schnell-Free",
+            "prompt": request.prompt,
+            "width": request.width,
+            "height": request.height,
+            "steps": request.steps,
+            "n": request.n,
+            "response_format": "b64_json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Together AI API request failed: {error_text}"
+                    )
+                
+                result = await response.json()
+                
+                # Extract base64 image data
+                if "data" in result and len(result["data"]) > 0:
+                    image_data = result["data"][0]["b64_json"]
+                    
+                    # Return the image with appropriate headers
+                    return Response(
+                        content=base64.b64decode(image_data),
+                        media_type="image/png",
+                        headers={
+                            "Content-Disposition": "attachment; filename=generated_image.png"
+                        }
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="No image data received from API"
+                    )
+
+    except Exception as e:
+        print(f"Error in generate_image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
