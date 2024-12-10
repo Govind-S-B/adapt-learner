@@ -338,12 +338,12 @@ async def create_persona():
         print(f"Error details: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def evaluator(user_persona, request, material_image_url, output, feedback):
+async def evaluator(student_persona, request, material_image_url, output, feedback):
     """
     Evaluates an interaction and returns a score and reason using GPT-4V
     
     Args:
-        user_persona (str): The student's persona
+        student_persona (str): The student's persona
         request (str): The student's original request
         material_image_url (str): URL or base64 of the image being worked with
         output (str): The response given to the student
@@ -385,7 +385,7 @@ async def evaluator(user_persona, request, material_image_url, output, feedback)
                         },
                         {
                             "type": "text",
-                            "text": f"""STUDENT PERSONA: {user_persona}
+                            "text": f"""STUDENT PERSONA: {student_persona}
                             STUDENT REQUEST: {request}
                             OUTPUT GIVEN: {output}
                             STUDENT FEEDBACK: {feedback}"""
@@ -404,7 +404,7 @@ async def evaluator(user_persona, request, material_image_url, output, feedback)
         print(f"Error in evaluator: {str(e)}")
         return (0, f"Evaluation failed: {str(e)}")
 
-def optimize_prompt(history, user_persona):
+def optimize_prompt(history, student_persona):
     """
     Function that optimizes the user persona based on interaction history
     """
@@ -424,7 +424,7 @@ def optimize_prompt(history, user_persona):
         that addresses any weaknesses or gaps identified in the learning process.
 
         Current User Persona:
-        {user_persona}
+        {student_persona}
 
         Interaction History:
         {json.dumps(filtered_history, indent=2)}
@@ -435,7 +435,7 @@ def optimize_prompt(history, user_persona):
         3. Common themes in feedback
         4. Score patterns and their reasons
 
-        Return ONLY a JSON object with a single key 'new_user_persona' containing the optimized persona.
+        Return ONLY a JSON object with a single key 'new_student_persona' containing the optimized persona.
         The new persona should maintain the same XML structure as the original but with optimized content."""
 
         response = client.chat.completions.create(
@@ -447,11 +447,11 @@ def optimize_prompt(history, user_persona):
         )
 
         result = json.loads(response.choices[0].message.content)
-        return result["new_user_persona"]
+        return result["new_student_persona"]
 
     except Exception as e:
         print(f"Error in optimize_prompt: {str(e)}")
-        return user_persona  # Return original persona if optimization fails
+        return student_persona  # Return original persona if optimization fails
 
 @router.post("/ai/learn")
 async def learn():
@@ -459,7 +459,7 @@ async def learn():
     Endpoint to evaluate and optimize the learning process based on history
     """
     try:
-        if "history" not in data or "user_persona" not in data:
+        if "history" not in data or "student_persona" not in data:
             raise HTTPException(status_code=400, detail="History or user persona not found in data")
 
         threshold = 60  # Score threshold for success
@@ -471,7 +471,7 @@ async def learn():
             # Score each interaction in history
             for interaction in data["history"]:
                 score_data = await evaluator(
-                    data["user_persona"],
+                    data["student_persona"],
                     interaction.get("request"),
                     interaction.get("material"),
                     interaction.get("output"),
@@ -497,7 +497,7 @@ async def learn():
                 }
             
             # Otherwise, optimize the user persona
-            data["user_persona"] = optimize_prompt(data["history"], data["user_persona"])
+            data["student_persona"] = optimize_prompt(data["history"], data["student_persona"])
         
         # If we reach here, we've hit max iterations without success
         raise HTTPException(

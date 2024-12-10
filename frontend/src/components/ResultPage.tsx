@@ -21,6 +21,7 @@ export function ResultPage() {
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<string>('');
+  const [isLearning, setIsLearning] = useState(false);
 
   // Adjust PDF viewport size based on screen size
   useEffect(() => {
@@ -218,13 +219,48 @@ export function ResultPage() {
     }
   };
 
+  const handleLearnClick = async () => {
+    setIsLearning(true);
+    try {
+      const response = await fetch('http://localhost:8000/ai/learn', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Learning process failed');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        alert(`Learning completed successfully! Final score: ${data.final_score}`);
+      }
+    } catch (error) {
+      console.error('Error during learning process:', error);
+      alert('Failed to complete learning process');
+    } finally {
+      setIsLearning(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 flex flex-col bg-blue-50">
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 flex items-center justify-center relative">
-          <SparkleButton onClick={() => {
-            console.log('Sparkle button clicked!');
-          }} />
+          <SparkleButton 
+            onClick={handleLearnClick}
+            isLoading={isLearning}
+          />
+          {isLearning && (
+            <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-50">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="mt-4 text-blue-600 font-semibold">Learning in progress...</p>
+              </div>
+            </div>
+          )}
           <PDFViewer
             uploadedFile={uploadedFile}
             pdfViewportSize={pdfViewportSize}
