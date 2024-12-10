@@ -70,7 +70,9 @@ async def multimodal_call(request: MultiModal):
         prompt=f'''You are given a user quesry and a custom persona. The persona is of a student and the query is the 
         student asking questions related to his study materials. the uploaded image is a small snippet of what the student is 
         learning and want personalisation in. Your job is to create a relevant answer suitable to the users query and image, 
-        the generated answer should strictly be aligned with the user persona of the student. 
+        the generated answer should strictly be aligned with the user persona of the student. In your output,
+        also generate a prompt to generate an image relevant to the users query and materials. Also generate a summary scrip of 
+        the response which will be later converted to audio. DONOT ADD SPECIAL CHARACTERS to the responses. STRICTLY ALIGN TO THE FORMAT GIVEN
         
         THE USER QUERY :
         {request.prompt}
@@ -78,10 +80,21 @@ async def multimodal_call(request: MultiModal):
         THE USER PERSONA :
         {data['student_persona']}
         
+        The output should be strictly in the following format: 
+        
+        CHAT_RESPONSE :
+        <answer to users query with his persona in mind>
+        
+        IMAGE_PROMPT :
+        <prompt to generate an image relevant to the users query and materials>
+        
+        SUMMARY_SCRIPT :
+        <summary script of the response which will be later converted to audio>
+        
         '''
         
         response = client.chat.completions.create(
-            model="gpt-4-vision-preview",  # Using the correct model name
+            model="gpt-4o",  # Using the correct model name
             messages=[
                 {
                     "role": "user",
@@ -108,10 +121,51 @@ async def multimodal_call(request: MultiModal):
         response_text = response.choices[0].message.content
         print(f"Got response text: {response_text[:50]}...")
 
+        # Extract content under CHAT_RESPONSE
+        chat_response = ""
+        image_prompt = ""  # Initialize image prompt variable
+        
+        if "CHAT_RESPONSE" in response_text:
+            print("Found CHAT_RESPONSE marker")
+            sections = response_text.split("CHAT_RESPONSE")
+            if len(sections) > 1:
+                chat_response = sections[1].split("IMAGE_PROMPT")[0].strip()
+                print(f"Extracted chat response: {chat_response[:50]}...")
+        else:
+            print("CHAT_RESPONSE marker not found in:", response_text)
+
+        if "IMAGE_PROMPT" in response_text:
+            print("Found IMAGE_PROMPT marker")
+            sections = response_text.split("IMAGE_PROMPT")
+            if len(sections) > 1:
+                image_prompt = sections[1].strip()
+                print(f"Extracted image prompt: {image_prompt[:50]}...")
+        else:
+            print("IMAGE_PROMPT marker not found in response")
+            
+        # Generate image using the extracted prompt
+        generated_image = None
+        image_base64 = None
+        if image_prompt:
+            try:
+                response = await generate_image(image_prompt)
+                if isinstance(response, Response):
+                    # Convert binary image data to base64
+                    image_base64 = base64.b64encode(response.body).decode('utf-8')
+                    # Add the image to the chat response in markdown format
+                    chat_response += f"\n\n![Generated Image](data:image/png;base64,{image_base64})"
+                print("Successfully generated image from prompt")
+                print(f"Generated image base64: {image_base64[:50]}...")
+            except Exception as e:
+                print(f"Error generating image: {str(e)}")
+                # Continue execution even if image generation fails
+
         return {
             "status": "success",
-            "response": response_text
-        }
+            "response": chat_response,
+            "image_prompt": image_prompt,
+            "image_base64": image_base64
+            }
 
     except openai.APIError as e:
         print(f"OpenAI API Error: {str(e)}")
@@ -451,6 +505,65 @@ async def generate_image(request: ImageGenerationRequest):
             "height": request.height,
             "steps": request.steps,
             "n": request.n,
+            "response_format": "b64_json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Together AI API request failed: {error_text}"
+                    )
+                
+                result = await response.json()
+                
+                # Extract base64 image data
+                if "data" in result and len(result["data"]) > 0:
+                    image_data = result["data"][0]["b64_json"]
+                    
+                    # Return the image with appropriate headers
+                    return Response(
+                        content=base64.b64decode(image_data),
+                        media_type="image/png",
+                        headers={
+                            "Content-Disposition": "attachment; filename=generated_image.png"
+                        }
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="No image data received from API"
+                    )
+
+    except Exception as e:
+        print(f"Error in generate_image: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
+    
+    
+async def generate_image(query):
+    """
+    Endpoint to generate images using Together AI API
+    """
+    try:
+        together_api_key = os.getenv("TOGETHER_API_KEY")
+        if not together_api_key:
+            raise HTTPException(status_code=500, detail="Together AI API key not configured")
+
+        url = "https://api.together.xyz/v1/images/generations"
+        headers = {
+            "Authorization": f"Bearer {together_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "black-forest-labs/FLUX.1-schnell-Free",
+            "prompt": query,
+            "width": 1024,
+            "height": 768,
+            "steps": 1,
+            "n": 1,
             "response_format": "b64_json"
         }
 
